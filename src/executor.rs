@@ -1,17 +1,14 @@
-use crate::flashbots::FlashbotsBroadcaster;
 use alloy::{
     network::{eip2718::Encodable2718, EthereumWallet, TransactionBuilder},
     primitives::{keccak256, Address, Bytes},
     providers::Provider,
-    rpc::types::eth::TransactionRequest,
-    rpc::types::mev::EthSendBundle,
+    rpc::types::{eth::TransactionRequest, mev::EthSendBundle},
     signers::local::PrivateKeySigner,
 };
 use burberry::Executor;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::sync::Arc;
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc};
+
+use crate::flashbots::FlashbotsBroadcaster;
 
 #[derive(Default)]
 pub struct EchoExecutor<T>(PhantomData<T>);
@@ -19,7 +16,7 @@ pub struct EchoExecutor<T>(PhantomData<T>);
 #[async_trait::async_trait]
 impl<T: Debug + Send + Sync> Executor<T> for EchoExecutor<T> {
     async fn execute(&self, action: T) -> eyre::Result<()> {
-        println!("action: {:?}", action);
+        tracing::debug!("action: {:?}", action);
         Ok(())
     }
 }

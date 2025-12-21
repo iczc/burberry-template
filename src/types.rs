@@ -1,5 +1,9 @@
-use alloy::primitives::B256;
-use alloy::rpc::types::{Header, Transaction};
+use alloy::{
+    primitives::B256,
+    rpc::types::{Header, Transaction},
+};
+
+use crate::executor::BundleRequest;
 
 /// Core Event enum for the current strategy.
 #[derive(Debug, Clone)]
@@ -11,6 +15,6 @@ pub enum Event {
 /// Core Action enum for the current strategy.
 #[derive(Debug, Clone)]
 pub enum Action {
-    EchoBlock(u64),
+    SendToBundle(BundleRequest),
     EchoTransaction(B256),
 }
