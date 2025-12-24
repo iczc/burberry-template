@@ -1,7 +1,8 @@
 use alloy::{
     eips::{eip1559::BaseFeeParams, BlockNumberOrTag},
+    primitives::U256,
     providers::Provider,
-    rpc::types::Header,
+    rpc::types::{BlockOverrides, Header},
 };
 use eyre::{ContextCompat, WrapErr};
 use std::sync::Arc;
@@ -49,6 +50,17 @@ impl From<Header> for BlockInfo {
     }
 }
 
+impl From<BlockInfo> for BlockOverrides {
+    fn from(value: BlockInfo) -> Self {
+        Self {
+            number: Some(U256::from(value.number)),
+            time: Some(value.timestamp),
+            base_fee: Some(U256::from(value.base_fee_per_gas)),
+            ..Default::default()
+        }
+    }
+}
+
 pub struct BlockState {
     latest_block: BlockInfo,
     next_block: BlockInfo,
@@ -63,7 +75,7 @@ impl BlockState {
         let latest_block = provider
             .get_block_by_number(BlockNumberOrTag::Latest)
             .await
-            .context("fail to get latest block")?
+            .context("failed to get latest block")?
             .context("latest block not found")?;
 
         self.update_block_info(latest_block.header.clone());

@@ -49,17 +49,20 @@ async fn main() {
     let provider = ProviderBuilder::new()
         .connect_ws(ws)
         .await
-        .expect("fail to create ws provider");
+        .expect("failed to create ws provider");
 
     let provider: Arc<dyn Provider<_>> = Arc::new(provider);
-    let chain_id = provider.get_chain_id().await.expect("fail to get chain id");
+    let chain_id = provider
+        .get_chain_id()
+        .await
+        .expect("failed to get chain id");
 
     let searcher_signer = PrivateKeySigner::from_bytes(&args.private_key)
-        .expect("fail to parse private key")
+        .expect("failed to parse private key")
         .with_chain_id(Some(chain_id));
 
     let relay_signer =
-        PrivateKeySigner::from_bytes(&args.relay_key).expect("fail to parse relay key");
+        PrivateKeySigner::from_bytes(&args.relay_key).expect("failed to parse relay key");
 
     let mut engine = Engine::new();
 

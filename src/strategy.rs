@@ -14,6 +14,7 @@ use super::types::{Action, Event};
 use crate::{
     block_state::{BlockInfo, BlockState},
     executor::BundleRequest,
+    simulator::{calculate_erc20_balance_changes, simulate_transaction},
 };
 
 pub struct Strategy {
@@ -48,21 +49,33 @@ impl Strategy {
     }
 
     async fn build_tx(&self, next_block: BlockInfo) -> eyre::Result<TransactionRequest> {
+        let tx = TransactionRequest::default()
+            .with_input(self.config.calldata.clone())
+            .with_from(self.sender)
+            .with_to(self.config.contract_address);
+
+        let simulated_blocks = simulate_transaction(self.provider.clone(), tx, None).await?;
+        let balance_changes = calculate_erc20_balance_changes(&simulated_blocks);
+        let _contract_balance_changes = balance_changes
+            .get(&self.config.contract_address)
+            .ok_or_else(|| eyre!("contract has no balance changes"))?;
+
+        let gas_used = simulated_blocks
+            .last()
+            .and_then(|block| block.calls.last())
+            .map(|call| call.gas_used)
+            .ok_or_else(|| eyre!("failed to get gas_used from simulation result"))?;
+
         let nonce = self
             .provider
             .get_transaction_count(self.sender)
             .await
-            .map_err(|e| eyre!("Failed to get nonce {:?}", e))?;
+            .map_err(|e| eyre!("failed to get nonce {:?}", e))?;
 
         let max_fee_per_gas = next_block.base_fee_per_gas as u128 + self.config.max_priority_fee;
 
-        let gas_used = 1000000_u64;
-
         let tx: TransactionRequest = TransactionRequest::default()
             .with_nonce(nonce)
-            .with_input(self.config.calldata.clone())
-            .with_from(self.sender)
-            .with_to(self.config.contract_address)
             .with_max_fee_per_gas(max_fee_per_gas)
             .with_max_priority_fee_per_gas(max_fee_per_gas)
             .with_gas_limit(gas_used * 10 / 7);
@@ -97,7 +110,7 @@ impl burberry::Strategy<Event, Action> for Strategy {
                         submit_action!(submitter, Action::SendToBundle, bundle_request);
                     }
                     Err(e) => {
-                        error!("Failed to build transaction: {}", e);
+                        error!("failed to build transaction: {}", e);
                     }
                 }
             }
