@@ -2,13 +2,16 @@ use alloy::{
     network::{eip2718::Encodable2718, EthereumWallet, TransactionBuilder},
     primitives::{keccak256, Address, Bytes},
     providers::Provider,
-    rpc::types::{eth::TransactionRequest, mev::EthSendBundle},
+    rpc::types::{
+        eth::TransactionRequest,
+        mev::{EthBundleHash, EthSendBundle},
+    },
     signers::local::PrivateKeySigner,
+    transports::TransportResult,
 };
+use alloy_mev::{BroadcastableCall, Endpoints, EndpointsBuilder};
 use burberry::Executor;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc};
-
-use crate::flashbots::FlashbotsBroadcaster;
 
 #[derive(Default)]
 pub struct EchoExecutor<T>(PhantomData<T>);
@@ -22,9 +25,9 @@ impl<T: Debug + Send + Sync> Executor<T> for EchoExecutor<T> {
 }
 
 pub struct FlashbotsSender {
+    endpoints: Endpoints,
     provider: Arc<dyn Provider>,
     signers: HashMap<Address, EthereumWallet>,
-    broadcaster: FlashbotsBroadcaster,
 }
 
 #[derive(Clone, Debug)]
@@ -39,6 +42,13 @@ impl FlashbotsSender {
         signers: Vec<PrivateKeySigner>,
         relay_signer: PrivateKeySigner,
     ) -> Self {
+        let endpoints = EndpointsBuilder::default()
+            .beaverbuild()
+            .titan(relay_signer.clone())
+            .rsync()
+            .flashbots(relay_signer.clone())
+            .build();
+
         let signers: HashMap<_, _> = signers
             .into_iter()
             .map(|s| (s.address(), EthereumWallet::new(s)))
@@ -48,15 +58,10 @@ impl FlashbotsSender {
             tracing::info!("setting up signer {:#x}", signer);
         }
 
-        let broadcaster = FlashbotsBroadcaster::new(Some(relay_signer))
-            .unwrap()
-            .with_default_relays()
-            .unwrap();
-
         Self {
+            endpoints,
             provider,
             signers,
-            broadcaster,
         }
     }
 }
@@ -115,14 +120,24 @@ impl Executor<BundleRequest> for FlashbotsSender {
             ..Default::default()
         };
 
-        let send_result = self.broadcaster.broadcast_bundle(bundle).await;
-        match send_result {
-            Ok(_) => {
-                tracing::info!(?account, tx = ?tx_hash, "sent tx");
-            }
-            Err(err) => {
-                tracing::error!(?account, tx = ?tx_hash, "failed to send tx: {err:#}");
-                return Ok(());
+        let responses: Vec<TransportResult<EthBundleHash>> = BroadcastableCall::new(
+            &self.endpoints,
+            self.provider
+                .client()
+                .make_request("eth_sendBundle", (bundle,)),
+        )
+        .await;
+
+        tracing::info!(?account, tx = ?tx_hash, "sent tx");
+
+        for (response, endpoint) in responses.iter().zip(self.endpoints.iter()) {
+            match response {
+                Ok(_) => {
+                    tracing::debug!("bundle sent to {}", endpoint.url)
+                }
+                Err(err) => {
+                    tracing::error!("failed to send bundle to {}: {err:#}", endpoint.url);
+                }
             }
         }
 

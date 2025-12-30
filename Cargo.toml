@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy = { version = "1", features = ["full", "rpc-types-mev", "provider-mev-api"] }
+alloy = { version = "1", features = ["full", "rpc-types-mev"] }
+alloy-mev = "1.0"
 async-trait = "0.1"
 burberry = { git = "https://github.com/tonyke-bot/burberry.git", rev = "b0a652dc7b2733910f41760e1ae9d26010fe49f7" }
 clap = { version = "4.5", features = ["derive", "env"] }
