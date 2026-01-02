@@ -14,7 +14,7 @@ use super::types::{Action, Event};
 use crate::{
     block_state::{BlockInfo, BlockState},
     executor::BundleRequest,
-    simulator::{calculate_erc20_balance_changes, simulate_transaction},
+    simulator::simulate_tx,
 };
 
 pub struct Strategy {
@@ -54,17 +54,10 @@ impl Strategy {
             .with_from(self.sender)
             .with_to(self.config.contract_address);
 
-        let simulated_blocks = simulate_transaction(self.provider.clone(), tx, None).await?;
-        let balance_changes = calculate_erc20_balance_changes(&simulated_blocks);
+        let (balance_changes, gas_used) = simulate_tx(self.provider.clone(), tx, None).await?;
         let _contract_balance_changes = balance_changes
             .get(&self.config.contract_address)
             .ok_or_else(|| eyre!("contract has no balance changes"))?;
-
-        let gas_used = simulated_blocks
-            .last()
-            .and_then(|block| block.calls.last())
-            .map(|call| call.gas_used)
-            .ok_or_else(|| eyre!("failed to get gas_used from simulation result"))?;
 
         let nonce = self
             .provider

@@ -8,6 +8,7 @@ use alloy::{
     sol,
     sol_types::SolEvent,
 };
+use eyre::eyre;
 use std::{collections::HashMap, sync::Arc};
 
 type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
@@ -21,12 +22,11 @@ sol! {
     event Withdrawal(address indexed src, uint256 wad);
 }
 
-/// Simulates a transaction and returns the simulated blocks.
-pub async fn simulate_transaction(
+pub async fn simulate_tx(
     provider: Arc<dyn Provider>,
     tx: TransactionRequest,
     block_overrides: Option<BlockOverrides>,
-) -> eyre::Result<Vec<SimulatedBlock<Block>>> {
+) -> eyre::Result<(BalanceChanges, u64)> {
     let simulate_payload = SimulatePayload {
         block_state_calls: vec![SimBlock {
             block_overrides,
@@ -38,7 +38,15 @@ pub async fn simulate_transaction(
         return_full_transactions: false,
     };
 
-    Ok(provider.simulate(&simulate_payload).await?)
+    let simulated_blocks = provider.simulate(&simulate_payload).await?;
+    let balance_changes = calculate_erc20_balance_changes(&simulated_blocks);
+    let gas_used = simulated_blocks
+        .last()
+        .and_then(|block| block.calls.last())
+        .map(|call| call.gas_used)
+        .ok_or_else(|| eyre!("failed to get gas_used from simulation result"))?;
+
+    Ok((balance_changes, gas_used))
 }
 
 /// Calculates ERC20 token balance changes from simulated blocks.
