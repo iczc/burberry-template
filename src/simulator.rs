@@ -2,8 +2,8 @@ use alloy::{
     primitives::{address, Address, Log, I256, U256},
     providers::Provider,
     rpc::types::{
-        simulate::{SimBlock, SimulatePayload, SimulatedBlock},
-        Block, BlockOverrides, TransactionRequest,
+        simulate::{SimBlock, SimCallResult, SimulatePayload},
+        BlockOverrides, TransactionRequest,
     },
     sol,
     sol_types::SolEvent,
@@ -26,7 +26,7 @@ pub async fn simulate_tx(
     provider: Arc<dyn Provider>,
     tx: TransactionRequest,
     block_overrides: Option<BlockOverrides>,
-) -> eyre::Result<(BalanceChanges, u64)> {
+) -> eyre::Result<(BalanceChanges, SimCallResult)> {
     let simulate_payload = SimulatePayload {
         block_state_calls: vec![SimBlock {
             block_overrides,
@@ -39,26 +39,21 @@ pub async fn simulate_tx(
     };
 
     let simulated_blocks = provider.simulate(&simulate_payload).await?;
-    let balance_changes = calculate_erc20_balance_changes(&simulated_blocks);
-    let gas_used = simulated_blocks
+    let last_call = simulated_blocks
         .last()
         .and_then(|block| block.calls.last())
-        .map(|call| call.gas_used)
-        .ok_or_else(|| eyre!("failed to get gas_used from simulation result"))?;
+        .ok_or_else(|| eyre!("failed to get last call from simulation result"))?;
 
-    Ok((balance_changes, gas_used))
+    let balance_changes = calculate_erc20_balance_changes(&[last_call.clone()]);
+
+    Ok((balance_changes, last_call.clone()))
 }
 
-/// Calculates ERC20 token balance changes from simulated blocks.
-pub fn calculate_erc20_balance_changes(
-    simulated_blocks: &[SimulatedBlock<Block>],
-) -> BalanceChanges {
+pub fn calculate_erc20_balance_changes(calls: &[SimCallResult]) -> BalanceChanges {
     let mut balance_changes = HashMap::new();
 
-    for block in simulated_blocks {
-        for call_result in &block.calls {
-            handle_transfer_events(&call_result.logs, &mut balance_changes);
-        }
+    for call_result in calls {
+        handle_transfer_events(&call_result.logs, &mut balance_changes);
     }
 
     balance_changes

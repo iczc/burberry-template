@@ -54,7 +54,8 @@ impl Strategy {
             .with_from(self.sender)
             .with_to(self.config.contract_address);
 
-        let (balance_changes, gas_used) = simulate_tx(self.provider.clone(), tx, None).await?;
+        let (balance_changes, call_result) =
+            simulate_tx(self.provider.clone(), tx.clone(), None).await?;
         let _contract_balance_changes = balance_changes
             .get(&self.config.contract_address)
             .ok_or_else(|| eyre!("contract has no balance changes"))?;
@@ -67,11 +68,11 @@ impl Strategy {
 
         let max_fee_per_gas = next_block.base_fee_per_gas as u128 + self.config.max_priority_fee;
 
-        let tx: TransactionRequest = TransactionRequest::default()
+        let tx = tx
             .with_nonce(nonce)
             .with_max_fee_per_gas(max_fee_per_gas)
             .with_max_priority_fee_per_gas(max_fee_per_gas)
-            .with_gas_limit(gas_used * 10 / 7);
+            .with_gas_limit(call_result.gas_used * 10 / 7);
 
         Ok(tx)
     }
