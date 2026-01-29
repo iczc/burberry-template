@@ -44,26 +44,27 @@ pub async fn simulate_tx(
         .and_then(|block| block.calls.last())
         .ok_or_else(|| eyre!("failed to get last call from simulation result"))?;
 
-    let balance_changes = calculate_erc20_balance_changes(&[last_call.clone()]);
+    let balance_changes = calculate_erc20_balance_changes(last_call);
 
     Ok((balance_changes, last_call.clone()))
 }
 
-pub fn calculate_erc20_balance_changes(calls: &[SimCallResult]) -> BalanceChanges {
-    let mut balance_changes = HashMap::new();
-
-    for call_result in calls {
-        handle_transfer_events(&call_result.logs, &mut balance_changes);
+pub fn calculate_erc20_balance_changes(call: &SimCallResult) -> BalanceChanges {
+    // If transaction failed or no logs, return empty balance changes
+    if !call.status || call.logs.is_empty() {
+        return HashMap::new();
     }
+
+    let mut balance_changes = HashMap::new();
+    handle_logs(&call.logs, &mut balance_changes);
 
     balance_changes
 }
 
-fn handle_transfer_events(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceChanges) {
+fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceChanges) {
     for log in logs {
         let token = log.address();
-        let Some(alloy_log) = Log::new(token, log.topics().to_vec(), log.data().data.clone())
-        else {
+        let Some(alloy_log) = Log::new(token, log.topics().into(), log.data().data.clone()) else {
             continue;
         };
 
@@ -76,34 +77,32 @@ fn handle_transfer_events(logs: &[alloy::rpc::types::Log], balance_changes: &mut
                 token,
                 transfer.value,
             );
+            continue;
         }
-        // Handle WETH-specific events
-        else if token == WETH_ADDRESS {
-            handle_weth_events(&alloy_log, balance_changes);
-        }
-    }
-}
 
-fn handle_weth_events(alloy_log: &Log, balance_changes: &mut BalanceChanges) {
-    // Handle Deposit events (WETH)
-    if let Ok(deposit) = Deposit::decode_log(alloy_log) {
-        update_balance_changes(
-            balance_changes,
-            WETH_ADDRESS,
-            deposit.dst,
-            WETH_ADDRESS,
-            deposit.wad,
-        );
-    }
-    // Handle Withdrawal events (WETH)
-    else if let Ok(withdrawal) = Withdrawal::decode_log(alloy_log) {
-        update_balance_changes(
-            balance_changes,
-            withdrawal.src,
-            WETH_ADDRESS,
-            WETH_ADDRESS,
-            withdrawal.wad,
-        );
+        // Handle WETH-specific events
+        if token == WETH_ADDRESS {
+            // Handle Deposit events (WETH)
+            if let Ok(deposit) = Deposit::decode_log(&alloy_log) {
+                update_balance_changes(
+                    balance_changes,
+                    WETH_ADDRESS,
+                    deposit.dst,
+                    token,
+                    deposit.wad,
+                );
+            }
+            // Handle Withdrawal events (WETH)
+            else if let Ok(withdrawal) = Withdrawal::decode_log(&alloy_log) {
+                update_balance_changes(
+                    balance_changes,
+                    withdrawal.src,
+                    WETH_ADDRESS,
+                    token,
+                    withdrawal.wad,
+                );
+            }
+        }
     }
 }
 
