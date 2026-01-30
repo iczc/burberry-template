@@ -195,7 +195,7 @@ sol!(
 pub struct UniswapV3Quoter {
     provider: Arc<dyn Provider>,
     pools: Vec<Pool>,
-    token_weth_routes: HashMap<Address, Vec<Route>>,
+    tokens_to_weth_routes: HashMap<Address, Vec<Route>>,
 }
 
 impl UniswapV3Quoter {
@@ -234,7 +234,7 @@ impl UniswapV3Quoter {
         Self {
             provider,
             pools,
-            token_weth_routes: HashMap::new(),
+            tokens_to_weth_routes: HashMap::new(),
         }
     }
 
@@ -250,12 +250,12 @@ impl UniswapV3Quoter {
             .iter()
             .flat_map(|pool| [pool.token0, pool.token1])
             .collect();
-        quoter.token_weth_routes = quoter.compute_tokens_to_weth_routes(tokens);
+        quoter.tokens_to_weth_routes = quoter.compute_tokens_to_weth_routes(tokens);
 
         let (token_count, path_count) = (
-            quoter.token_weth_routes.len(),
+            quoter.tokens_to_weth_routes.len(),
             quoter
-                .token_weth_routes
+                .tokens_to_weth_routes
                 .values()
                 .map(Vec::len)
                 .sum::<usize>(),
@@ -293,7 +293,7 @@ impl UniswapV3Quoter {
         );
 
         let routes = if token_out == WETH_ADDRESS {
-            self.token_weth_routes
+            self.tokens_to_weth_routes
                 .get(&token_in)
                 .cloned()
                 .unwrap_or_else(|| {
@@ -526,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn test_precompute_token_weth_routes() {
+    fn test_precompute_tokens_to_weth_routes() {
         use crate::constants::WETH_ADDRESS;
 
         let provider = ProviderBuilder::new().connect_http(RPC_URL.parse().unwrap());
@@ -537,16 +537,16 @@ mod tests {
         );
 
         assert!(
-            quoter.token_weth_routes.len() > 0,
+            quoter.tokens_to_weth_routes.len() > 0,
             "Should cache at least some routes"
         );
 
         assert!(
-            !quoter.token_weth_routes.contains_key(&WETH_ADDRESS),
+            !quoter.tokens_to_weth_routes.contains_key(&WETH_ADDRESS),
             "WETH should not be in the cache"
         );
         assert!(
-            quoter.token_weth_routes.contains_key(&USDC),
+            quoter.tokens_to_weth_routes.contains_key(&USDC),
             "USDC should be in the cache"
         );
     }
