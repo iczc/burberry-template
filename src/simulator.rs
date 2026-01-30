@@ -1,5 +1,6 @@
+use crate::constants::WETH_ADDRESS;
 use alloy::{
-    primitives::{address, Address, Log, I256, U256},
+    primitives::{Address, Log, I256, U256},
     providers::Provider,
     rpc::types::{
         simulate::{SimBlock, SimCallResult, SimulatePayload},
@@ -11,10 +12,7 @@ use alloy::{
 use eyre::eyre;
 use std::{collections::HashMap, sync::Arc};
 
-type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
-
-// WETH address on Ethereum mainnet
-const WETH_ADDRESS: Address = address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+pub type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
 
 sol! {
     event Transfer(address indexed from, address indexed to, uint256 value);

@@ -1,0 +1,145 @@
+[
+  {
+    "id": "0x11b815efb8f581194ae79006d24e0d814b7697f6",
+    "feeTier": "500",
+    "liquidity": "390706161280473474",
+    "token0": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 37234.95983159232,
+    "tvlUSD": 101442690.15883844
+  },
+  {
+    "id": "0x3416cf6c708da44db2624d63ea0aaef7113527c6",
+    "feeTier": "100",
+    "liquidity": "15472852614586066",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 11983.959896279994,
+    "tvlUSD": 32671369.312311
+  },
+  {
+    "id": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36",
+    "feeTier": "3000",
+    "liquidity": "4509957618764873396",
+    "token0": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 103489.22868397618,
+    "tvlUSD": 281945403.1278009
+  },
+  {
+    "id": "0x7858e59e0c01ea06df3af3d20ac7b0003275d4bf",
+    "feeTier": "500",
+    "liquidity": "59528156310792",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 3191.993621411108,
+    "tvlUSD": 8728670.138352
+  },
+  {
+    "id": "0x7bea39867e4169dbe237d55c8242a8f2fcdcc387",
+    "feeTier": "10000",
+    "liquidity": "13555258587404434",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "tvlETH": 3999.712399854175,
+    "tvlUSD": 11045227.360974656
+  },
+  {
+    "id": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640",
+    "feeTier": "500",
+    "liquidity": "2931592325610409386",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "tvlETH": 142959.08790355772,
+    "tvlUSD": 389476839.1098485
+  },
+  {
+    "id": "0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8",
+    "feeTier": "3000",
+    "liquidity": "1116109327425620595",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "tvlETH": 117466.16252883949,
+    "tvlUSD": 320024073.70533854
+  },
+  {
+    "id": "0xc5af84701f98fa483ece78af83f11b6c38aca71d",
+    "feeTier": "10000",
+    "liquidity": "3253353100199583",
+    "token0": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 1406.4217986884205,
+    "tvlUSD": 3883841.38132304
+  },
+  {
+    "id": "0xc7bbec68d12a0d1830360f8ec58fa599ba1b0e9b",
+    "feeTier": "100",
+    "liquidity": "612139533169032518",
+    "token0": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 6681.543720551461,
+    "tvlUSD": 18203155.6497492
+  },
+  {
+    "id": "0xe0554a476a092703abdb3ef35c80e0d76d32939f",
+    "feeTier": "100",
+    "liquidity": "128864124446605282",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    "tvlETH": 3010.683376343589,
+    "tvlUSD": 8202286.837265739
+  },
+  {
+    "id": "0xee4cf3b78a74affa38c6a926282bcd8b5952818d",
+    "feeTier": "3000",
+    "liquidity": "2426212367823",
+    "token0": {
+      "id": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    "token1": {
+      "id": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    },
+    "tvlETH": 23.409728773320047,
+    "tvlUSD": 70989.096016
+  }
+]
