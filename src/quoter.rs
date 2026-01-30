@@ -17,7 +17,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use tracing::log::info;
+use tracing::log::{debug, info};
 
 #[derive(Deserialize, Debug)]
 struct SubgraphToken {
@@ -199,6 +199,7 @@ pub struct UniswapV3Quoter {
 }
 
 impl UniswapV3Quoter {
+    #[must_use]
     pub fn new(
         provider: Arc<dyn Provider>,
         pools_path: impl AsRef<Path>,
@@ -237,18 +238,39 @@ impl UniswapV3Quoter {
         }
     }
 
-    pub fn setup(&mut self) {
-        self.precompute_weth_routes();
-    }
-
-    fn precompute_weth_routes(&mut self) {
-        let all_tokens: HashSet<Address> = self
+    #[must_use]
+    pub fn new_and_precompute_weth_routes(
+        provider: Arc<dyn Provider>,
+        pools_path: impl AsRef<Path>,
+        tvl_eth_min: Option<f64>,
+    ) -> Self {
+        let mut quoter = Self::new(provider, pools_path, tvl_eth_min);
+        let tokens: HashSet<Address> = quoter
             .pools
             .iter()
             .flat_map(|pool| [pool.token0, pool.token1])
             .collect();
+        quoter.token_weth_routes = quoter.compute_tokens_to_weth_routes(tokens);
 
-        self.token_weth_routes = all_tokens
+        let (token_count, path_count) = (
+            quoter.token_weth_routes.len(),
+            quoter
+                .token_weth_routes
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+        );
+        info!("token-to-weth routes: {token_count} tokens, {path_count} paths");
+
+        quoter
+    }
+
+    fn compute_tokens_to_weth_routes(
+        &self,
+        tokens: impl IntoIterator<Item = Address>,
+    ) -> HashMap<Address, Vec<Route>> {
+        let tokens: Vec<Address> = tokens.into_iter().collect();
+        tokens
             .par_iter()
             .filter(|&&token| token != WETH_ADDRESS)
             .map(|&token| {
@@ -256,16 +278,7 @@ impl UniswapV3Quoter {
                 (token, routes)
             })
             .filter(|(_, routes)| !routes.is_empty())
-            .collect();
-
-        let token_count = self.token_weth_routes.len();
-        let path_count: usize = self
-            .token_weth_routes
-            .values()
-            .map(|routes| routes.len())
-            .sum();
-
-        info!("token-to-weth routes cached: {token_count} tokens, {path_count} total paths");
+            .collect()
     }
 
     pub async fn quote_best_amount_out(
@@ -284,9 +297,7 @@ impl UniswapV3Quoter {
                 .get(&token_in)
                 .cloned()
                 .unwrap_or_else(|| {
-                    tracing::warn!(
-                        "route not found in cache for token {token_in:?} to WETH, computing..."
-                    );
+                    debug!("route not found in cache for token {token_in:?} to WETH, computing...");
                     self.get_all_routes(token_in, WETH_ADDRESS, Some(DEFAULT_MAX_HOPS))
                 })
         } else {
@@ -309,7 +320,7 @@ impl UniswapV3Quoter {
                         .await
                         .map(|amount_out| (amount_out, route))
                         .map_err(|e| {
-                            tracing::debug!("Route quote failed, error: {}", e);
+                            debug!("route quote failed, error: {e:#}");
                             e
                         })
                         .ok()
@@ -455,7 +466,7 @@ async fn call_quoter(
         call.await?
     };
 
-    U256::abi_decode(&res).map_err(|err| eyre!("failed to decode quoter return data: {err:#}"))
+    U256::abi_decode(&res).map_err(|e| eyre!("failed to decode quoter return data: {e:#}"))
 }
 
 #[cfg(test)]
@@ -519,13 +530,16 @@ mod tests {
         use crate::constants::WETH_ADDRESS;
 
         let provider = ProviderBuilder::new().connect_http(RPC_URL.parse().unwrap());
-        let mut quoter = UniswapV3Quoter::new(Arc::new(provider), pools_fixture_path(), None);
+        let quoter = UniswapV3Quoter::new_and_precompute_weth_routes(
+            Arc::new(provider),
+            pools_fixture_path(),
+            None,
+        );
 
-        assert_eq!(quoter.token_weth_routes.len(), 0);
-        quoter.precompute_weth_routes();
-
-        let cached_count = quoter.token_weth_routes.len();
-        assert!(cached_count > 0, "Should cache at least some routes");
+        assert!(
+            quoter.token_weth_routes.len() > 0,
+            "Should cache at least some routes"
+        );
 
         assert!(
             !quoter.token_weth_routes.contains_key(&WETH_ADDRESS),
