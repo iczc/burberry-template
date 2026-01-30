@@ -6,6 +6,7 @@ use alloy::{
 use crate::executor::BundleRequest;
 
 /// Core Event enum for the current strategy.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Event {
     Block(Header),
@@ -13,6 +14,7 @@ pub enum Event {
 }
 
 /// Core Action enum for the current strategy.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Action {
     SendToBundle(BundleRequest),
