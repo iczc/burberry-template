@@ -7,7 +7,7 @@ use alloy::{
     sol,
     sol_types::{SolCall, SolValue},
 };
-use eyre::eyre;
+use eyre::{eyre, Context};
 use futures::future::join_all;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize};
@@ -319,23 +319,29 @@ impl UniswapV3Quoter {
                     call_quoter(&provider, calldata, None)
                         .await
                         .map(|amount_out| (amount_out, route))
-                        .map_err(|e| {
-                            debug!("route quote failed, error: {e:#}");
-                            e
-                        })
+                        .inspect_err(|e| debug!("route quote failed, error: {e:#}"))
                         .ok()
                 }
             })
             .collect();
 
-        let (max_amount_out, best_route) = join_all(quote_futures)
+        let results: Vec<_> = join_all(quote_futures)
             .await
             .into_iter()
             .flatten()
-            .max_by_key(|(amount_out, _)| *amount_out)
-            .ok_or_else(|| eyre!("no valid route found from {token_in:?} to {token_out:?}"))?;
+            .collect();
 
-        Ok((max_amount_out, best_route))
+        if results.is_empty() {
+            eyre::bail!("all route quotes failed from {token_in:?} to {token_out:?}");
+        }
+
+        results
+            .into_iter()
+            .filter(|(amount_out, _)| !amount_out.is_zero())
+            .max_by_key(|(amount_out, _)| *amount_out)
+            .ok_or_else(|| {
+                eyre!("all routes returned zero amount from {token_in:?} to {token_out:?}")
+            })
     }
 
     fn get_all_routes(
@@ -391,7 +397,7 @@ pub fn encode_route_to_path(route: &Route, exact_output: bool) -> Vec<u8> {
         path.extend(route.token_in.abi_encode_packed());
     } else {
         let mut input_token = route.token_in;
-        for pool in route.pools.iter() {
+        for pool in &route.pools {
             let (output_token, leg) = encode_leg(pool, input_token);
             input_token = output_token;
             path.extend(leg);
@@ -466,7 +472,7 @@ async fn call_quoter(
         call.await?
     };
 
-    U256::abi_decode(&res).map_err(|e| eyre!("failed to decode quoter return data: {e:#}"))
+    U256::abi_decode(&res).context("failed to decode quoter return data")
 }
 
 #[cfg(test)]

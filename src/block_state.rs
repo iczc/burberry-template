@@ -4,7 +4,7 @@ use alloy::{
     providers::Provider,
     rpc::types::{BlockOverrides, Header},
 };
-use eyre::{ContextCompat, WrapErr};
+use eyre::{Context, ContextCompat};
 use std::sync::Arc;
 use tracing::info;
 
