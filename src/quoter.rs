@@ -17,7 +17,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use tracing::log::{debug, info};
+use tracing::{debug, info};
 
 #[derive(Deserialize, Debug)]
 struct SubgraphToken {
@@ -91,17 +91,17 @@ pub struct Route {
     pub pools: Vec<Pool>,
 }
 
-pub struct ComputeRoutes {
+pub struct ComputeRoutes<'a> {
     token_in: Address,
     token_out: Address,
-    pools: Vec<Pool>,
+    pools: &'a [Pool],
     max_hops: u8,
     pools_used: Vec<bool>,
     routes: Vec<Route>,
 }
 
-impl ComputeRoutes {
-    pub fn new(token_in: Address, token_out: Address, pools: Vec<Pool>, max_hops: u8) -> Self {
+impl<'a> ComputeRoutes<'a> {
+    pub fn new(token_in: Address, token_out: Address, pools: &'a [Pool], max_hops: u8) -> Self {
         let pool_len = pools.len();
         ComputeRoutes {
             token_in,
@@ -311,17 +311,13 @@ impl UniswapV3Quoter {
 
         let quote_futures: Vec<_> = routes
             .into_iter()
-            .map(|route| {
-                let provider = self.provider.clone();
-                async move {
-                    let calldata =
-                        build_quote_calldata(amount_in, &route, TradeType::ExactInput, None);
-                    call_quoter(&provider, calldata, None)
-                        .await
-                        .map(|amount_out| (amount_out, route))
-                        .inspect_err(|e| debug!("route quote failed, error: {e:#}"))
-                        .ok()
-                }
+            .map(|route| async {
+                let calldata = build_quote_calldata(amount_in, &route, TradeType::ExactInput, None);
+                call_quoter(&self.provider, calldata, None)
+                    .await
+                    .map(|amount_out| (amount_out, route))
+                    .inspect_err(|e| debug!("route quote failed, error: {e:#}"))
+                    .ok()
             })
             .collect();
 
@@ -353,7 +349,7 @@ impl UniswapV3Quoter {
         let mut compute_route = ComputeRoutes::new(
             token_in,
             token_out,
-            self.pools.clone(),
+            &self.pools,
             max_hops.unwrap_or(DEFAULT_MAX_HOPS),
         );
         compute_route.compute_all_univ3_routes();
@@ -407,7 +403,7 @@ pub fn encode_route_to_path(route: &Route, exact_output: bool) -> Vec<u8> {
     path
 }
 
-fn build_quote_calldata(
+pub fn build_quote_calldata(
     amount: U256,
     route: &Route,
     trade_type: TradeType,
@@ -465,7 +461,7 @@ async fn call_quoter(
         .with_to(QUOTER_ADDRESS)
         .with_input(calldata);
 
-    let call = provider.root().call(tx);
+    let call = provider.call(tx);
     let res = if let Some(block) = block {
         call.block(block).await?
     } else {
@@ -485,8 +481,8 @@ mod tests {
     use std::sync::Arc;
 
     const RPC_URL: &str = "https://eth.merkle.io";
-    const WETH: Address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-    const USDC: Address = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    const WETH: Address = address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    const USDC: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 
     fn pools_fixture_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pools.json")
@@ -528,7 +524,7 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(amount_out, U256::default());
-        assert_eq!(route.pools.is_empty(), false);
+        assert!(!route.pools.is_empty());
     }
 
     #[test]
@@ -543,7 +539,7 @@ mod tests {
         );
 
         assert!(
-            quoter.tokens_to_weth_routes.len() > 0,
+            !quoter.tokens_to_weth_routes.is_empty(),
             "Should cache at least some routes"
         );
 

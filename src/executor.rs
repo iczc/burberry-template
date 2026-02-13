@@ -46,7 +46,7 @@ impl FlashbotsSender {
             .beaverbuild()
             .titan(relay_signer.clone())
             .rsync()
-            .flashbots(relay_signer.clone())
+            .flashbots(relay_signer)
             .build();
 
         let signers: HashMap<_, _> = signers
