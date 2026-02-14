@@ -79,8 +79,7 @@ async fn main() {
     );
     engine.add_strategy(Box::new(strategy));
 
-    let flashbots_sender =
-        FlashbotsSender::new(Arc::clone(&provider), vec![searcher_signer], relay_signer);
+    let flashbots_sender = FlashbotsSender::new(provider, vec![searcher_signer], relay_signer);
     engine.add_executor(map_executor!(flashbots_sender, Action::SendToBundle));
     engine.add_executor(map_executor!(
         EchoExecutor::default(),

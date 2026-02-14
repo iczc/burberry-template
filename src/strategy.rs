@@ -54,7 +54,7 @@ impl Strategy {
             .with_from(self.sender)
             .with_to(self.config.contract_address);
 
-        let (balance_changes, call_result) =
+        let (balance_changes, sim_result) =
             simulate_tx(self.provider.clone(), tx.clone(), None).await?;
         let _contract_balance_changes = balance_changes
             .get(&self.config.contract_address)
@@ -72,7 +72,7 @@ impl Strategy {
             .with_nonce(nonce)
             .with_max_fee_per_gas(max_fee_per_gas)
             .with_max_priority_fee_per_gas(max_fee_per_gas)
-            .with_gas_limit(call_result.gas_used * 10 / 7);
+            .with_gas_limit(sim_result.gas_used * 10 / 7);
 
         Ok(tx)
     }
