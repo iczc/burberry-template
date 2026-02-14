@@ -1,10 +1,10 @@
 use crate::constants::WETH_ADDRESS;
 use alloy::{
-    primitives::{Address, Log, I256, U256},
+    primitives::{Address, I256, U256},
     providers::Provider,
     rpc::types::{
         simulate::{SimBlock, SimCallResult, SimulatePayload},
-        BlockOverrides, TransactionRequest,
+        BlockOverrides, Log, TransactionRequest,
     },
     sol,
     sol_types::SolEvent,
@@ -59,15 +59,12 @@ pub fn calculate_erc20_balance_changes(call: &SimCallResult) -> BalanceChanges {
     balance_changes
 }
 
-fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceChanges) {
+fn handle_logs(logs: &[Log], balance_changes: &mut BalanceChanges) {
     for log in logs {
         let token = log.address();
-        let Some(alloy_log) = Log::new(token, log.topics().into(), log.data().data.clone()) else {
-            continue;
-        };
 
         // Handle Transfer events
-        if let Ok(transfer) = Transfer::decode_log(&alloy_log) {
+        if let Ok(transfer) = Transfer::decode_log(&log.inner) {
             update_balance_changes(
                 balance_changes,
                 transfer.from,
@@ -81,7 +78,7 @@ fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceCha
         // Handle WETH-specific events
         if token == WETH_ADDRESS {
             // Handle Deposit events (WETH)
-            if let Ok(deposit) = Deposit::decode_log(&alloy_log) {
+            if let Ok(deposit) = Deposit::decode_log(&log.inner) {
                 update_balance_changes(
                     balance_changes,
                     WETH_ADDRESS,
@@ -91,7 +88,7 @@ fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceCha
                 );
             }
             // Handle Withdrawal events (WETH)
-            else if let Ok(withdrawal) = Withdrawal::decode_log(&alloy_log) {
+            else if let Ok(withdrawal) = Withdrawal::decode_log(&log.inner) {
                 update_balance_changes(
                     balance_changes,
                     withdrawal.src,
