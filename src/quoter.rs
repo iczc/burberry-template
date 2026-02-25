@@ -10,7 +10,7 @@ use alloy::{
 use eyre::{eyre, Context};
 use futures::future::join_all;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -18,6 +18,11 @@ use std::{
     sync::Arc,
 };
 use tracing::{debug, info};
+
+fn deserialize_u128_from_string<'de, D: Deserializer<'de>>(d: D) -> Result<u128, D::Error> {
+    let s = String::deserialize(d)?;
+    s.parse().map_err(serde::de::Error::custom)
+}
 
 #[derive(Deserialize, Debug)]
 struct SubgraphToken {
@@ -29,9 +34,8 @@ struct V3SubgraphPool {
     id: String,
     #[serde(rename = "feeTier")]
     fee_tier: String,
-    #[allow(dead_code)]
-    #[serde(default)]
-    liquidity: Option<String>,
+    #[serde(deserialize_with = "deserialize_u128_from_string")]
+    pub liquidity: u128,
     token0: SubgraphToken,
     token1: SubgraphToken,
     #[serde(rename = "tvlETH")]
@@ -91,6 +95,15 @@ pub struct Route {
     pub pools: Vec<Pool>,
 }
 
+fn build_token_pool_index(pools: &[Pool]) -> HashMap<Address, Vec<usize>> {
+    let mut index: HashMap<Address, Vec<usize>> = HashMap::new();
+    for (i, pool) in pools.iter().enumerate() {
+        index.entry(pool.token0).or_default().push(i);
+        index.entry(pool.token1).or_default().push(i);
+    }
+    index
+}
+
 pub struct ComputeRoutes<'a> {
     token_in: Address,
     token_out: Address,
@@ -98,18 +111,25 @@ pub struct ComputeRoutes<'a> {
     max_hops: u8,
     pools_used: Vec<bool>,
     routes: Vec<Route>,
+    token_pool_index: &'a HashMap<Address, Vec<usize>>,
 }
 
 impl<'a> ComputeRoutes<'a> {
-    pub fn new(token_in: Address, token_out: Address, pools: &'a [Pool], max_hops: u8) -> Self {
-        let pool_len = pools.len();
+    pub fn new(
+        token_in: Address,
+        token_out: Address,
+        pools: &'a [Pool],
+        token_pool_index: &'a HashMap<Address, Vec<usize>>,
+        max_hops: u8,
+    ) -> Self {
         ComputeRoutes {
             token_in,
             token_out,
             pools,
             max_hops,
-            pools_used: vec![false; pool_len],
+            pools_used: vec![false; pools.len()],
             routes: vec![],
+            token_pool_index,
         }
     }
 
@@ -144,20 +164,20 @@ impl<'a> ComputeRoutes<'a> {
 
         let previous_token_out = previous_token_out.unwrap_or(self.token_in);
 
-        for i in 0..self.pools.len() {
+        let candidates = match self.token_pool_index.get(&previous_token_out) {
+            Some(indices) => indices.clone(),
+            None => return,
+        };
+
+        for i in candidates {
             if self.pools_used[i] {
                 continue;
             }
 
-            let cur_pool = &self.pools[i];
-
-            if !cur_pool.involves_token(previous_token_out) {
-                continue;
-            }
-
+            let cur_pool = self.pools[i];
             let current_token_out = cur_pool.get_token_out(previous_token_out);
 
-            current_route.push(*cur_pool);
+            current_route.push(cur_pool);
             self.pools_used[i] = true;
             self.compute_routes(current_route, Some(current_token_out));
             self.pools_used[i] = false;
@@ -195,6 +215,7 @@ sol!(
 pub struct UniswapV3Quoter {
     provider: Arc<dyn Provider>,
     pools: Vec<Pool>,
+    token_pool_index: HashMap<Address, Vec<usize>>,
     tokens_to_weth_routes: HashMap<Address, Vec<Route>>,
 }
 
@@ -207,10 +228,11 @@ impl UniswapV3Quoter {
     ) -> Self {
         let pools: Vec<Pool> = load_json_file::<Vec<V3SubgraphPool>>(&pools_path)
             .into_iter()
+            .filter(|pool| {
+                pool.tvl_eth > tvl_eth_min.unwrap_or(0.0)
+                    || (pool.liquidity > 0 && pool.tvl_eth == 0.0)
+            })
             .filter_map(|pool| {
-                if tvl_eth_min.is_some_and(|min_tvl| pool.tvl_eth <= min_tvl) {
-                    return None;
-                }
                 let address = pool.id.parse().ok()?;
                 let token0 = pool.token0.id.parse().ok()?;
                 let token1 = pool.token1.id.parse().ok()?;
@@ -231,9 +253,12 @@ impl UniswapV3Quoter {
 
         info!("pools loaded: {}", pools.len());
 
+        let token_pool_index = build_token_pool_index(&pools);
+
         Self {
             provider,
             pools,
+            token_pool_index,
             tokens_to_weth_routes: HashMap::new(),
         }
     }
@@ -246,18 +271,7 @@ impl UniswapV3Quoter {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();
-        self.tokens_to_weth_routes = self.compute_tokens_to_weth_routes(&tokens);
-
-        let path_count: usize = self.tokens_to_weth_routes.values().map(Vec::len).sum();
-        info!(
-            tokens = self.tokens_to_weth_routes.len(),
-            paths = path_count,
-            "v3 routes precomputed"
-        );
-    }
-
-    fn compute_tokens_to_weth_routes(&self, tokens: &[Address]) -> HashMap<Address, Vec<Route>> {
-        tokens
+        self.tokens_to_weth_routes = tokens
             .par_iter()
             .filter(|&&token| token != WETH_ADDRESS)
             .map(|&token| {
@@ -265,7 +279,14 @@ impl UniswapV3Quoter {
                 (token, routes)
             })
             .filter(|(_, routes)| !routes.is_empty())
-            .collect()
+            .collect();
+
+        let path_count: usize = self.tokens_to_weth_routes.values().map(Vec::len).sum();
+        info!(
+            tokens = self.tokens_to_weth_routes.len(),
+            paths = path_count,
+            "v3 routes precomputed"
+        );
     }
 
     pub async fn quote_best_amount_out(
@@ -337,6 +358,7 @@ impl UniswapV3Quoter {
             token_in,
             token_out,
             &self.pools,
+            &self.token_pool_index,
             max_hops.unwrap_or(DEFAULT_MAX_HOPS),
         );
         compute_route.compute_all_univ3_routes();
