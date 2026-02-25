@@ -58,7 +58,7 @@ pub enum TradeType {
     ExactOutput,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Pool {
     pub address: Address,
     pub token0: Address,
@@ -157,7 +157,7 @@ impl<'a> ComputeRoutes<'a> {
 
             let current_token_out = cur_pool.get_token_out(previous_token_out);
 
-            current_route.push(cur_pool.clone());
+            current_route.push(*cur_pool);
             self.pools_used[i] = true;
             self.compute_routes(current_route, Some(current_token_out));
             self.pools_used[i] = false;
@@ -238,38 +238,25 @@ impl UniswapV3Quoter {
         }
     }
 
-    #[must_use]
-    pub fn new_and_precompute_weth_routes(
-        provider: Arc<dyn Provider>,
-        pools_path: impl AsRef<Path>,
-        tvl_eth_min: Option<f64>,
-    ) -> Self {
-        let mut quoter = Self::new(provider, pools_path, tvl_eth_min);
-        let tokens: HashSet<Address> = quoter
+    pub fn precompute_weth_routes(&mut self) {
+        let tokens: Vec<Address> = self
             .pools
             .iter()
             .flat_map(|pool| [pool.token0, pool.token1])
+            .collect::<HashSet<_>>()
+            .into_iter()
             .collect();
-        quoter.tokens_to_weth_routes = quoter.compute_tokens_to_weth_routes(tokens);
+        self.tokens_to_weth_routes = self.compute_tokens_to_weth_routes(&tokens);
 
-        let (token_count, path_count) = (
-            quoter.tokens_to_weth_routes.len(),
-            quoter
-                .tokens_to_weth_routes
-                .values()
-                .map(Vec::len)
-                .sum::<usize>(),
+        let path_count: usize = self.tokens_to_weth_routes.values().map(Vec::len).sum();
+        info!(
+            tokens = self.tokens_to_weth_routes.len(),
+            paths = path_count,
+            "v3 routes precomputed"
         );
-        info!("token-to-weth routes: {token_count} tokens, {path_count} paths");
-
-        quoter
     }
 
-    fn compute_tokens_to_weth_routes(
-        &self,
-        tokens: impl IntoIterator<Item = Address>,
-    ) -> HashMap<Address, Vec<Route>> {
-        let tokens: Vec<Address> = tokens.into_iter().collect();
+    fn compute_tokens_to_weth_routes(&self, tokens: &[Address]) -> HashMap<Address, Vec<Route>> {
         tokens
             .par_iter()
             .filter(|&&token| token != WETH_ADDRESS)
@@ -532,11 +519,8 @@ mod tests {
         use crate::constants::WETH_ADDRESS;
 
         let provider = ProviderBuilder::new().connect_http(RPC_URL.parse().unwrap());
-        let quoter = UniswapV3Quoter::new_and_precompute_weth_routes(
-            Arc::new(provider),
-            pools_fixture_path(),
-            None,
-        );
+        let mut quoter = UniswapV3Quoter::new(Arc::new(provider), pools_fixture_path(), None);
+        quoter.precompute_weth_routes();
 
         assert!(
             !quoter.tokens_to_weth_routes.is_empty(),
