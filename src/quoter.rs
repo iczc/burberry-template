@@ -9,7 +9,7 @@ use alloy::{
 };
 use eyre::{eyre, Context};
 use futures::future::join_all;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 use std::{
     collections::{HashMap, HashSet},
@@ -264,21 +264,19 @@ impl UniswapV3Quoter {
     }
 
     pub fn precompute_weth_routes(&mut self) {
-        let tokens: Vec<Address> = self
+        let mut tokens: HashSet<Address> = self
             .pools
             .iter()
             .flat_map(|pool| [pool.token0, pool.token1])
-            .collect::<HashSet<_>>()
-            .into_iter()
             .collect();
+        tokens.remove(&WETH_ADDRESS);
+
         self.tokens_to_weth_routes = tokens
-            .par_iter()
-            .filter(|&&token| token != WETH_ADDRESS)
-            .map(|&token| {
+            .into_par_iter()
+            .filter_map(|token| {
                 let routes = self.get_all_routes(token, WETH_ADDRESS, Some(DEFAULT_MAX_HOPS));
-                (token, routes)
+                (!routes.is_empty()).then(|| (token, routes))
             })
-            .filter(|(_, routes)| !routes.is_empty())
             .collect();
 
         let path_count: usize = self.tokens_to_weth_routes.values().map(Vec::len).sum();
