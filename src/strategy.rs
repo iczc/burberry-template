@@ -6,7 +6,7 @@ use alloy::{
 };
 use burberry::{submit_action, ActionSubmitter};
 use clap::Parser;
-use eyre::eyre;
+use eyre::{eyre, Context};
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -54,7 +54,7 @@ impl Strategy {
             .with_from(self.sender)
             .with_to(self.config.contract_address);
 
-        let (balance_changes, call_result) =
+        let (balance_changes, sim_result) =
             simulate_tx(self.provider.clone(), tx.clone(), None).await?;
         let _contract_balance_changes = balance_changes
             .get(&self.config.contract_address)
@@ -64,7 +64,7 @@ impl Strategy {
             .provider
             .get_transaction_count(self.sender)
             .await
-            .map_err(|e| eyre!("failed to get nonce {:?}", e))?;
+            .context("failed to get nonce")?;
 
         let max_fee_per_gas = next_block.base_fee_per_gas as u128 + self.config.max_priority_fee;
 
@@ -72,7 +72,7 @@ impl Strategy {
             .with_nonce(nonce)
             .with_max_fee_per_gas(max_fee_per_gas)
             .with_max_priority_fee_per_gas(max_fee_per_gas)
-            .with_gas_limit(call_result.gas_used * 10 / 7);
+            .with_gas_limit(sim_result.gas_used * 10 / 7);
 
         Ok(tx)
     }
@@ -83,7 +83,7 @@ impl burberry::Strategy<Event, Action> for Strategy {
         &mut self,
         _submitter: Arc<dyn ActionSubmitter<Action>>,
     ) -> eyre::Result<()> {
-        self.block_state.setup(self.provider.clone()).await.unwrap();
+        self.block_state.setup(self.provider.clone()).await?;
 
         Ok(())
     }
@@ -92,7 +92,7 @@ impl burberry::Strategy<Event, Action> for Strategy {
         match event {
             Event::Block(block) => {
                 info!("found new block: {}", block.number);
-                self.block_state.update_block_info(block.clone());
+                self.block_state.update_block_info(block);
                 let next_block = self.block_state.get_next_block();
 
                 match self.build_tx(next_block).await {

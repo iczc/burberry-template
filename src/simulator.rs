@@ -1,9 +1,9 @@
 use alloy::{
-    primitives::{address, Address, Log, I256, U256},
+    primitives::{address, Address, I256, U256},
     providers::Provider,
     rpc::types::{
         simulate::{SimBlock, SimCallResult, SimulatePayload},
-        BlockOverrides, TransactionRequest,
+        BlockOverrides, Log, TransactionRequest,
     },
     sol,
     sol_types::SolEvent,
@@ -11,7 +11,7 @@ use alloy::{
 use eyre::eyre;
 use std::{collections::HashMap, sync::Arc};
 
-type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
+pub type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
 
 // WETH address on Ethereum mainnet
 const WETH_ADDRESS: Address = address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
@@ -61,15 +61,12 @@ pub fn calculate_erc20_balance_changes(call: &SimCallResult) -> BalanceChanges {
     balance_changes
 }
 
-fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceChanges) {
+fn handle_logs(logs: &[Log], balance_changes: &mut BalanceChanges) {
     for log in logs {
         let token = log.address();
-        let Some(alloy_log) = Log::new(token, log.topics().into(), log.data().data.clone()) else {
-            continue;
-        };
 
         // Handle Transfer events
-        if let Ok(transfer) = Transfer::decode_log(&alloy_log) {
+        if let Ok(transfer) = Transfer::decode_log(&log.inner) {
             update_balance_changes(
                 balance_changes,
                 transfer.from,
@@ -83,7 +80,7 @@ fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceCha
         // Handle WETH-specific events
         if token == WETH_ADDRESS {
             // Handle Deposit events (WETH)
-            if let Ok(deposit) = Deposit::decode_log(&alloy_log) {
+            if let Ok(deposit) = Deposit::decode_log(&log.inner) {
                 update_balance_changes(
                     balance_changes,
                     WETH_ADDRESS,
@@ -93,7 +90,7 @@ fn handle_logs(logs: &[alloy::rpc::types::Log], balance_changes: &mut BalanceCha
                 );
             }
             // Handle Withdrawal events (WETH)
-            else if let Ok(withdrawal) = Withdrawal::decode_log(&alloy_log) {
+            else if let Ok(withdrawal) = Withdrawal::decode_log(&log.inner) {
                 update_balance_changes(
                     balance_changes,
                     withdrawal.src,

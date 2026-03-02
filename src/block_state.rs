@@ -4,7 +4,7 @@ use alloy::{
     providers::Provider,
     rpc::types::{BlockOverrides, Header},
 };
-use eyre::{ContextCompat, WrapErr};
+use eyre::{Context, ContextCompat};
 use std::sync::Arc;
 use tracing::info;
 
@@ -78,9 +78,11 @@ impl BlockState {
             .context("failed to get latest block")?
             .context("latest block not found")?;
 
-        self.update_block_info(latest_block.header.clone());
+        let header = latest_block.header;
+        let block_number = header.number;
+        self.update_block_info(header);
 
-        info!("latest block synced: {}", latest_block.header.number);
+        info!("latest block synced: {}", block_number);
         Ok(())
     }
 
