@@ -1,3 +1,5 @@
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc};
+
 use alloy::{
     network::{eip2718::Encodable2718, EthereumWallet, TransactionBuilder},
     primitives::{keccak256, Address, Bytes},
@@ -11,7 +13,6 @@ use alloy::{
 };
 use alloy_mev::{BroadcastableCall, Endpoints, EndpointsBuilder};
 use burberry::Executor;
-use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc};
 
 #[derive(Default)]
 pub struct EchoExecutor<T>(PhantomData<T>);

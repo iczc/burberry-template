@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use alloy::{
     eips::{eip1559::BaseFeeParams, BlockNumberOrTag},
     primitives::U256,
@@ -5,7 +7,6 @@ use alloy::{
     rpc::types::{BlockOverrides, Header},
 };
 use eyre::{Context, ContextCompat};
-use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Default, Clone, Copy)]

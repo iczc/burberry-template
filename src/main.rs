@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use alloy::{
     primitives::B256,
     providers::{Provider, ProviderBuilder, WsConnect},
@@ -13,7 +15,6 @@ use burberry_template::{
     types::{Action, Event},
 };
 use clap::Parser;
-use std::sync::Arc;
 use tracing::Level;
 use tracing_subscriber::{filter, prelude::*};
 

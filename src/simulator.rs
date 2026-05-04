@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::Arc};
+
 use alloy::{
     primitives::{address, Address, I256, U256},
     providers::Provider,
@@ -9,7 +11,6 @@ use alloy::{
     sol_types::SolEvent,
 };
 use eyre::eyre;
-use std::{collections::HashMap, sync::Arc};
 
 pub type BalanceChanges = HashMap<Address, HashMap<Address, I256>>;
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, Bytes},
@@ -7,14 +9,13 @@ use alloy::{
 use burberry::{submit_action, ActionSubmitter};
 use clap::Parser;
 use eyre::{eyre, Context};
-use std::sync::Arc;
 use tracing::{error, info};
 
-use super::types::{Action, Event};
 use crate::{
     block_state::{BlockInfo, BlockState},
     executor::BundleRequest,
     simulator::simulate_tx,
+    types::{Action, Event},
 };
 
 pub struct Strategy {
